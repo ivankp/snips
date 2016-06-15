@@ -17,7 +17,9 @@ int main()
   histD(3,5);
 
   for (unsigned i=0; i<histD.bins().size(); ++i)
-    cout << "bin "<<i<<": " << histD[i] << endl;
+    cout << "bin "<< i << " ["
+         << histD.ledge(i) << ',' << histD.redge(i)
+         << "): " << histD[i] << endl;
 
   cout << endl;
   // **********************************
@@ -28,7 +30,10 @@ int main()
 
   for (unsigned i=0; i<bb.bins().size(); ++i)
     for (unsigned j=0; j<bb[i].bins().size(); ++j)
-      cout << "bin "<<i<<','<<j<<": " << bb[i][j] << endl;
+      cout << "bin "<< i<<','<<j << " ["
+           << bb.ledge(i) << ',' << bb.redge(i) << ")["
+           << bb[i].ledge(j) << ',' << bb[i].redge(j)
+           << "): " << bb[i][j] << endl;
 
   return 0;
 }
