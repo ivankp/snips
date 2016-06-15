@@ -11,12 +11,12 @@ ifeq (0, $(words $(findstring $(MAKECMDGOALS), clean)))
 -include $(DEP)
 endif
 
-$(EXE): test_%: test/%.cc
+$(EXE):
+	@echo $@: $^
 	g++ $(CXXFLAGS) $< -o $@
 
 $(DEP): .dep/%.d: test/%.cc | .dep
 	@g++ $(CXXFLAGS) -MM -MT '$(<:test/%.cc=test_%)' $< -MF $@
-	@cat $@
 
 .dep:
 	@mkdir $@
