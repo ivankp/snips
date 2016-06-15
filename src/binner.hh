@@ -3,7 +3,6 @@
 
 #include <limits>
 #include <utility>
-#include <algorithm>
 
 #include "type_traits_extra.hh"
 
@@ -151,7 +150,7 @@ public:
   template <typename... TT>
   size_type fill(edge_t e, TT&&... args)
   noexcept(noexcept( filler_t()(std::declval<bin_t&>(),
-                     std::forward<TT>(args)...) ))
+                                std::forward<TT>(args)...) ))
   {
     size_type i = find_bin(e);
     filler_t()(_bins[i], std::forward<TT>(args)...);
@@ -160,7 +159,8 @@ public:
 
   template <typename... TT>
   inline size_type operator()(edge_t e, TT&&... args)
-  noexcept(noexcept( fill(e, std::forward<TT>(args)...) ))
+  noexcept(noexcept(
+    std::declval<binner&>().fill(e, std::forward<TT>(args)...) ))
   {
     return fill(e, std::forward<TT>(args)...);
   }
@@ -203,7 +203,7 @@ public:
 
   //---------------------------------------------
 
-  inline size_type nbins() const { return _edges.size()-1; }
+  inline size_type nbins() const { return _bins.size()-2; }
 
   inline const std::vector<edge_t>& edges() const noexcept { return _edges; }
   inline const std::vector< bin_t>&  bins() const noexcept { return _bins;  }

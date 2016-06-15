@@ -14,7 +14,7 @@ int main()
 
   histD.fill(0.5);
   histD.fill(1);
-  histD.fill(3,5);
+  histD(3,5);
 
   for (unsigned i=0; i<histD.bins().size(); ++i)
     cout << "bin "<<i<<": " << histD[i] << endl;
@@ -24,6 +24,7 @@ int main()
 
   binner<binner<double>> bb(3,0,3);
   for (auto& bin : bb.bins()) bin = {1,2};
+  bb.bins().back() = {1,3,6,8};
 
   for (unsigned i=0; i<bb.bins().size(); ++i)
     for (unsigned j=0; j<bb[i].bins().size(); ++j)
