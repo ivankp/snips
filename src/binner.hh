@@ -3,6 +3,7 @@
 
 #include <limits>
 #include <utility>
+#include <algorithm>
 
 #include "type_traits_extra.hh"
 
@@ -15,7 +16,7 @@
  */
 
 template <typename Bin>
-struct binner_filler_plus_eq {
+struct bin_filler_plus_eq {
   template <typename T>
   inline void operator()(Bin& bin, T&& x)
   noexcept(noexcept(bin += std::forward<T>(x)))
@@ -23,66 +24,73 @@ struct binner_filler_plus_eq {
 };
 
 template <typename Bin, typename Enable = void>
-struct binner_filler_default: public binner_filler_plus_eq<Bin> {
+struct bin_filler_default: public bin_filler_plus_eq<Bin> {
   template <typename... TT>
   inline enable_t<sizeof...(TT)!=1 || !has_op_plus_eq<Bin,TT...>::value>
   operator()(Bin& bin, TT&&... args)
   noexcept(noexcept(bin(std::forward<TT>(args)...)))
   { bin(std::forward<TT>(args)...); }
 
-  using binner_filler_plus_eq<Bin>::operator();
+  using bin_filler_plus_eq<Bin>::operator();
 };
 
 template <typename Bin>
-struct binner_filler_default<Bin, enable_t<
+struct bin_filler_default<Bin, enable_t<
   has_op_pre_increment<Bin>::value
->>: public binner_filler_plus_eq<Bin> {
+>>: public bin_filler_plus_eq<Bin> {
   inline void operator()(Bin& bin) noexcept(noexcept(++bin)) { ++bin; }
 
-  using binner_filler_plus_eq<Bin>::operator();
+  using bin_filler_plus_eq<Bin>::operator();
 };
 
 template <typename Bin>
-struct binner_filler_default<Bin, enable_t<
+struct bin_filler_default<Bin, enable_t<
   !has_op_pre_increment<Bin>::value && has_op_post_increment<Bin>::value
->>: public binner_filler_plus_eq<Bin> {
+>>: public bin_filler_plus_eq<Bin> {
   inline void operator()(Bin& bin) noexcept(noexcept(bin++)) { bin++; }
 
-  using binner_filler_plus_eq<Bin>::operator();
+  using bin_filler_plus_eq<Bin>::operator();
 };
 
 //===================================================================
 
 template <typename Bin, typename Edge = double,
-          typename Filler = binner_filler_default<Bin>>
+          typename BinFiller = bin_filler_default<Bin>>
 class binner {
 public:
-  typedef Bin    bin_t;
-  typedef Edge   edge_t;
-  typedef Filler filler_t;
-  typedef typename std::vector<edge_t>::iterator  edge_iter;
-  typedef typename std::vector< bin_t>::iterator   bin_iter;
+  typedef Bin  bin_t;
+  typedef Edge edge_t;
+  typedef BinFiller filler_t;
+  typedef typename std::vector<edge_t>::iterator edge_iter;
+  typedef typename std::vector< bin_t>::iterator  bin_iter;
   // typedef typename std::vector<edge_t>::size_type size_type;
   typedef unsigned size_type;
 
 protected:
   std::vector<edge_t> _edges;
   std::vector< bin_t> _bins;
+  bool ubw; // uniform bin width
+  // IDEA: use boost::variant<std::vector<edge_t>,<nbins,low,up>>
+  // http://www.boost.org/doc/libs/1_61_0/doc/html/variant/tutorial.html
 
 public:
-  binner() { }
-  binner(const binner& o): _edges(o._edges), _bins(o._bins) { }
+  binner(): _edges(), _bins(), ubw(false) { }
+  binner(const binner& o): _edges(o._edges), _bins(o._bins), ubw(o.ubw) { }
   binner(binner&& o) noexcept
-  : _edges(std::move(o._edges)), _bins(std::move(o._bins)) { }
+  : _edges(std::move(o._edges)), _bins(std::move(o._bins)), ubw(o.ubw)
+  { o.ubw = false; }
 
   binner& operator=(const binner& o) {
     _edges = o._edges;
     _bins = o._bins;
+    ubw = o.ubw;
     return *this;
   }
   binner& operator=(binner&& o) noexcept {
     _edges = std::move(o._edges);
     _bins = std::move(o._bins);
+    ubw = o.ubw;
+    o.ubw = false;
     return *this;
   }
 
@@ -92,38 +100,42 @@ public:
     const edge_t step = (xup-xlow)/nbins;
     for (size_type i=0; i<=nbins; ++i)
       _edges[i] = xlow + i*step;
+    ubw = true;
   }
 
   binner(const std::vector<edge_t>& edges)
-  : _edges(edges), _bins(_edges.size()+1)
+  : _edges(edges), _bins(_edges.size()+1), ubw(false)
   { }
   binner& operator=(const std::vector<edge_t>& edges) {
     _edges = edges;
     _bins = std::vector<bin_t>(_edges.size()+1);
+    ubw = false;
     return *this;
   }
 
   binner(std::vector<edge_t>&& edges) noexcept
-  : _edges(std::move(edges)), _bins(_edges.size()+1)
+  : _edges(std::move(edges)), _bins(_edges.size()+1), ubw(false)
   { }
   binner& operator=(std::vector<edge_t>&& edges) noexcept {
     _edges = std::move(edges);
     _bins = std::vector<bin_t>(_edges.size()+1);
+    ubw = false;
     return *this;
   }
 
   binner(std::initializer_list<edge_t> il)
-  : _edges(il), _bins(_edges.size()+1)
+  : _edges(il), _bins(_edges.size()+1), ubw(false)
   { }
   binner& operator=(std::initializer_list<edge_t> il) {
     _edges = il;
     _bins = std::vector<bin_t>(_edges.size()+1);
+    ubw = false;
     return *this;
   }
 
   template <typename InputIterator>
   binner(InputIterator first, InputIterator last)
-  : _edges(first,last), _bins(_edges.size()+1)
+  : _edges(first,last), _bins(_edges.size()+1), ubw(false)
   { }
 
   template <typename InputIterator>
@@ -131,20 +143,19 @@ public:
   {
     _edges = {first,last};
     _bins = decltype(_bins)(_edges.size()+1);
+    ubw = false;
   }
 
   //---------------------------------------------
 
   size_type find_bin(edge_t e) noexcept {
-    size_type i = _edges.size()-1;
-    for (;;--i) {
-      if (e >= _edges[i]) {
-        ++i;
-        break;
-      }
-      if (i==0) break;
-    }
-    return i;
+    if (e < _edges.front()) return 0;
+    if (e >= _edges.back()) return _edges.size();
+    if (ubw) {
+      return 1 + size_type(
+        (_edges.size()-1)*(e-_edges.front())/(_edges.back()-_edges.front()) );
+    } else return
+      (std::lower_bound(_edges.begin(), _edges.end(), e)-_edges.begin()) + 1;
   }
 
   template <typename... TT>
@@ -196,8 +207,8 @@ public:
   edge_t ledge(size_type i) const {
     return i ? _edges.at(i-1) : -std::numeric_limits<edge_t>::infinity();
   }
-  edge_t redge(size_type i) const {
-    return i<_edges.size() ? _edges.at(i)
+  edge_t redge(size_type i) const noexcept {
+    return i<_edges.size() ? _edges[i]
                            : std::numeric_limits<edge_t>::infinity();
   }
 
@@ -207,8 +218,11 @@ public:
 
   inline const std::vector<edge_t>& edges() const noexcept { return _edges; }
   inline const std::vector< bin_t>&  bins() const noexcept { return _bins;  }
-  inline std::vector<edge_t>& edges() noexcept { return _edges; }
-  inline std::vector< bin_t>&  bins() noexcept { return _bins;  }
+  inline std::vector<edge_t>& edges(bool promise_ubw=false) noexcept {
+    ubw = promise_ubw;
+    return _edges;
+  }
+  inline std::vector< bin_t>& bins() noexcept { return _bins;  }
 };
 
 #endif

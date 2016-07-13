@@ -11,9 +11,9 @@ ifeq (0, $(words $(findstring $(MAKECMDGOALS), clean)))
 -include $(DEP)
 endif
 
-$(EXE):
+$(EXE): test_%:
 	@echo $@: $^
-	g++ $(CXXFLAGS) $< -o $@
+	g++ $(CXXFLAGS) $< -o $@ $(LIBS_$*)
 
 $(DEP): .dep/%.d: test/%.cc | .dep
 	@g++ $(CXXFLAGS) -MM -MT '$(<:test/%.cc=test_%)' $< -MF $@

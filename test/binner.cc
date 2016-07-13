@@ -15,6 +15,10 @@ int main()
   histD.fill(0.5);
   histD.fill(1);
   histD(3,5);
+  histD(4.1,3);
+  histD(3.9);
+  histD(5,9);
+  histD(-1,7);
 
   for (unsigned i=0; i<histD.bins().size(); ++i)
     cout << "bin "<< i << " ["
