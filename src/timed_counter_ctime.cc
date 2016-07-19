@@ -1,4 +1,4 @@
-#include "timed_counter.hh"
+#include "timed_counter_ctime.hh"
 
 #include <iostream>
 #include <iomanip>
